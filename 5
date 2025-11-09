@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Venn Diagram</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f4f8;
+            margin: 20px;
+        }
+        
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .venn-container {
+            width: 700px;
+            height: 600px;
+            position: relative;
+        }
+        
+        .circle {
+            stroke: white;
+            stroke-width: 2px;
+            opacity: 0.7;
+            transition: all 0.5s ease;
+        }
+        
+        .circle:hover {
+            opacity: 0.9;
+            stroke-width: 3px;
+        }
+        
+        .label {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .region-label {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        #interact-btn {
+            background-color: #4a90e2;
+            color: white;
+        }
+        
+        #reset-btn {
+            background-color: #f5a623;
+            color: white;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .title {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .note {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #666;
+            max-width: 700px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">Chart 7 (Venn)</div>
+        <div class="venn-container" id="venn-diagram"></div>
+        <div class="controls">
+            <button id="interact-btn">Interactive View</button>
+            <button id="reset-btn">Reset to Original</button>
+        </div>
+        <div class="note">
+            Note that the sizes of circles are usually data driven. For this example, just use arbitrary data.
+        </div>
+    </div>
+
+    <script>
+        // Set up the SVG
+        const width = 700;
+        const height = 600;
+        
+        const svg = d3.select("#venn-diagram")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+        
+        // Define circle centers and radii
+        const circleConfig = {
+            delete: {
+                cx: width * 0.35,
+                cy: height * 0.6,
+                r: 180,
+                color: "#9b7eda",
+                label: "Delete",
+                labelX: width * 0.35,
+                labelY: height * 0.6 - 200
+            },
+            replace: {
+                cx: width * 0.5,
+                cy: height * 0.4,
+                r: 160,
+                color: "#d4a76a",
+                label: "Replace",
+                labelX: width * 0.5,
+                labelY: height * 0.4 - 180
+            },
+            rewrite: {
+                cx: width * 0.65,
+                cy: height * 0.6,
+                r: 180,
+                color: "#6ac0d4",
+                label: "Rewrite",
+                labelX: width * 0.65,
+                labelY: height * 0.6 - 200
+            }
+        };
+        
+        // Define region labels positions
+        const regions = [
+            { id: "I", x: width * 0.22, y: height * 0.6, label: "I" },
+            { id: "II", x: width * 0.5, y: height * 0.25, label: "II" },
+            { id: "III", x: width * 0.78, y: height * 0.6, label: "III" },
+            { id: "IV", x: width * 0.38, y: height * 0.5, label: "IV" },
+            { id: "V", x: width * 0.62, y: height * 0.5, label: "V" },
+            { id: "VI", x: width * 0.35, y: height * 0.7, label: "VI" },
+            { id: "VII", x: width * 0.5, y: height * 0.6, label: "VII" }
+        ];
+        
+        // Initial draw with animation
+        function drawVenn(animated = true) {
+            // Clear existing elements
+            svg.selectAll("*").remove();
+            
+            const duration = animated ? 1000 : 0;
+            
+            // Draw circles with animation
+            Object.values(circleConfig).forEach((circle, i) => {
+                svg.append("circle")
+                    .attr("class", "circle")
+                    .attr("cx", circle.cx)
+                    .attr("cy", circle.cy)
+                    .attr("r", 0)  // Start with radius 0 for animation
+                    .attr("fill", circle.color)
+                    .transition()
+                    .duration(duration)
+                    .delay(i * 200)  // Staggered animation
+                    .attr("r", circle.r);
+            });
+            
+            // Add labels with animation
+            Object.values(circleConfig).forEach((circle, i) => {
+                svg.append("text")
+                    .attr("class", "label")
+                    .attr("x", circle.labelX)
+                    .attr("y", circle.labelY)
+                    .attr("text-anchor", "middle")
+                    .attr("opacity", 0)  // Start invisible
+                    .text(circle.label)
+                    .transition()
+                    .duration(duration)
+                    .delay(600 + i * 200)  // After circles animate
+                    .attr("opacity", 1);
+            });
+            
+            // Add region labels with animation
+            regions.forEach((region, i) => {
+                svg.append("text")
+                    .attr("class", "region-label")
+                    .attr("x", region.x)
+                    .attr("y", region.y)
+                    .attr("text-anchor", "middle")
+                    .attr("opacity", 0)  // Start invisible
+                    .attr("fill", "#333")
+                    .text(region.label)
+                    .transition()
+                    .duration(duration)
+                    .delay(1200 + i * 100)  // After main labels
+                    .attr("opacity", 1);
+            });
+        }
+        
+        // Create interactive view with different arrangement
+        function interactiveView() {
+            // New positions for interactive mode
+            const interactivePositions = {
+                delete: { cx: width * 0.25, cy: height * 0.5, r: 160 },
+                replace: { cx: width * 0.5, cy: height * 0.5, r: 160 },
+                rewrite: { cx: width * 0.75, cy: height * 0.5, r: 160 }
+            };
+            
+            // Animate circles to new positions
+            svg.selectAll(".circle")
+                .data(Object.entries(circleConfig))
+                .transition()
+                .duration(800)
+                .attr("cx", d => interactivePositions[d[0]].cx)
+                .attr("cy", d => interactivePositions[d[0]].cy)
+                .attr("r", d => interactivePositions[d[0]].r);
+            
+            // Update main labels position
+            svg.selectAll(".label")
+                .data(Object.entries(circleConfig))
+                .transition()
+                .duration(800)
+                .attr("x", d => interactivePositions[d[0]].cx)
+                .attr("y", d => interactivePositions[d[0]].cy - 180);
+            
+            // New region positions for interactive view
+            const newRegions = [
+                { id: "I", x: width * 0.15, y: height * 0.5 },
+                { id: "II", x: width * 0.5, y: height * 0.3 },
+                { id: "III", x: width * 0.85, y: height * 0.5 },
+                { id: "IV", x: width * 0.35, y: height * 0.45 },
+                { id: "V", x: width * 0.65, y: height * 0.45 },
+                { id: "VI", x: width * 0.35, y: height * 0.55 },
+                { id: "VII", x: width * 0.5, y: height * 0.6 }
+            ];
+            
+            // Animate region labels to new positions
+            svg.selectAll(".region-label")
+                .data(newRegions)
+                .transition()
+                .duration(800)
+                .attr("x", d => d.x)
+                .attr("y", d => d.y)
+                .attr("font-size", "16px");
+        }
+        
+        // Add hover effect for regions
+        function addInteractions() {
+            // Make regions interactive
+            svg.selectAll(".region-label")
+                .on("mouseover", function(event) {
+                    d3.select(this)
+                        .transition()
+                        .duration(300)
+                        .attr("font-size", "18px")
+                        .attr("font-weight", "bold")
+                        .attr("fill", "#e74c3c");
+                })
+                .on("mouseout", function(event) {
+                    d3.select(this)
+                        .transition()
+                        .duration(300)
+                        .attr("font-size", "16px")
+                        .attr("font-weight", "500")
+                        .attr("fill", "#333");
+                });
+            
+            // Add click effect on circles
+            svg.selectAll(".circle")
+                .on("click", function(event, d) {
+                    d3.select(this)
+                        .transition()
+                        .duration(300)
+                        .attr("opacity", 0.5)
+                        .transition()
+                        .duration(300)
+                        .attr("opacity", 0.7);
+                });
+        }
+        
+        // Initialize the diagram
+        drawVenn();
+        
+        // Add interactions after initial draw
+        setTimeout(addInteractions, 2000);
+        
+        // Button event listeners
+        document.getElementById("interact-btn").addEventListener("click", function() {
+            interactiveView();
+            addInteractions();
+        });
+        
+        document.getElementById("reset-btn").addEventListener("click", function() {
+            drawVenn();
+            setTimeout(addInteractions, 2000);
+        });
+    </script>
+</body>
+</html>
