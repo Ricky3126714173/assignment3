@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart 4 (frequency) - D3.js Implementation</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            margin: 0;
+            padding: 2rem;
+        }
+        
+        .chart-container {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .chart-title {
+            font-size: 1.8rem;
+            color: #2c3e50;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+        }
+        
+        .btn.reset {
+            background-color: #95a5a6;
+        }
+        
+        .btn.reset:hover {
+            background-color: #7f8c8d;
+        }
+        
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+        }
+        
+        .legend-item:hover {
+            background-color: #f0f4f8;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            margin-right: 8px;
+            border-radius: 3px;
+        }
+        
+        .axis-label {
+            font-size: 0.9rem;
+            fill: #7f8c8d;
+            text-anchor: middle;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background-color: rgba(44, 62, 80, 0.9);
+            color: white;
+            padding: 0.6rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+            z-index: 100;
+        }
+        
+        .grid line {
+            stroke: #eaeaea;
+            stroke-dasharray: 3, 3;
+        }
+        
+        .grid path {
+            stroke-width: 0;
+        }
+        
+        .note {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            margin-top: 1.5rem;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="chart-container">
+        <h2 class="chart-title">Chart 4 (frequency)</h2>
+        <div class="controls">
+            <button class="btn interactive">Interactive View</button>
+            <button class="btn reset">Reset to Original</button>
+        </div>
+        <div class="legend"></div>
+        <svg class="chart"></svg>
+        <div class="note">Note that the values are not to be exactly replicated</div>
+        <div class="tooltip"></div>
+    </div>
+
+    <script>
+        // 设置图表尺寸和边距
+        const margin = { top: 20, right: 30, bottom: 50, left: 60 };
+        const width = document.querySelector('.chart-container').clientWidth - margin.left - margin.right;
+        const height = 500 - margin.top - margin.bottom;
+
+        // 创建SVG元素
+        const svg = d3.select('.chart')
+            .attr('width', width + margin.left + margin.right)
+            .attr('height', height + margin.top + margin.bottom)
+            .append('g')
+            .attr('transform', `translate(${margin.left}, ${margin.top})`);
+
+        // 定义模型和颜色
+        const models = [
+            { name: 'Set model', color: '#4ECDC4' },
+            { name: 'Sequence model', color: '#FF6B6B' },
+            { name: 'Vector model', color: '#45B7D1' },
+            { name: 'End-to-end', color: '#FFA07A' }
+        ];
+
+        // 生成模拟数据 (1980-2020年)
+        const years = Array.from({ length: 41 }, (_, i) => 1980 + i);
+        
+        // 根据原图趋势生成数据
+        const generateData = () => {
+            return models.map(model => {
+                const values = years.map(year => {
+                    let value = 0;
+                    
+                    // 大致遵循原图趋势
+                    if (model.name === 'Set model') {
+                        // 早期有一定频率，中期下降，后期略有回升
+                        if (year < 1990) value = Math.random() * 1.5;
+                        else if (year < 2010) value = Math.random() * 0.8;
+                        else value = Math.random() * 1.2;
+                    } else if (model.name === 'Sequence model') {
+                        // 90年代初有小高峰，后期逐渐增加
+                        if (year < 1990) value = 0;
+                        else if (year < 1995) value = Math.random() * 1.5;
+                        else if (year < 2010) value = Math.random() * 2;
+                        else value = 1 + Math.random() * 3;
+                    } else if (model.name === 'Vector model') {
+                        // 2000年后开始出现，逐渐增加
+                        if (year < 2000) value = 0;
+                        else if (year < 2010) value = Math.random() * 2;
+                        else value = 2 + Math.random() * 3;
+                    } else if (model.name === 'End-to-end') {
+                        // 后期快速增长，2015年后成为主导
+                        if (year < 2005) value = 0;
+                        else if (year < 2010) value = Math.random() * 1;
+                        else if (year < 2015) value = 2 + Math.random() * 3;
+                        else value = 5 + Math.random() * 4;
+                    }
+                    
+                    return { year, value };
+                });
+                
+                return {
+                    name: model.name,
+                    color: model.color,
+                    values: values
+                };
+            });
+        };
+
+        // 初始数据
+        let data = generateData();
+        let originalData = JSON.parse(JSON.stringify(data));
+        let activeModels = models.map(m => m.name);
+        let isInteractiveMode = false;
+
+        // 创建比例尺
+        const x = d3.scaleLinear()
+            .domain(d3.extent(years))
+            .range([0, width]);
+
+        const y = d3.scaleLinear()
+            .domain([0, 10])
+            .range([height, 0]);
+
+        // 创建坐标轴
+        const xAxis = d3.axisBottom(x)
+            .tickFormat(d3.format('d'))
+            .ticks(10);
+
+        const yAxis = d3.axisLeft(y)
+            .ticks(5);
+
+        // 添加网格线
+        const xGrid = d3.axisBottom(x)
+            .tickFormat('')
+            .ticks(10)
+            .tickSize(-height);
+
+        const yGrid = d3.axisLeft(y)
+            .tickFormat('')
+            .ticks(5)
+            .tickSize(-width);
+
+        // 添加网格线到SVG
+        svg.append('g')
+            .attr('class', 'grid x-grid')
+            .attr('transform', `translate(0, ${height})`)
+            .call(xGrid);
+
+        svg.append('g')
+            .attr('class', 'grid y-grid')
+            .call(yGrid);
+
+        // 添加坐标轴到SVG
+        svg.append('g')
+            .attr('class', 'x-axis')
+            .attr('transform', `translate(0, ${height})`)
+            .call(xAxis);
+
+        svg.append('g')
+            .attr('class', 'y-axis')
+            .call(yAxis);
+
+        // 添加坐标轴标签
+        svg.append('text')
+            .attr('class', 'axis-label')
+            .attr('x', width / 2)
+            .attr('y', height + margin.bottom - 10)
+            .text('Year');
+
+        svg.append('text')
+            .attr('class', 'axis-label')
+            .attr('transform', 'rotate(-90)')
+            .attr('x', -height / 2)
+            .attr('y', -margin.left + 15)
+            .text('Frequency');
+
+        // 创建图例
+        const legend = d3.select('.legend');
+        
+        models.forEach(model => {
+            const item = legend.append('div')
+                .attr('class', 'legend-item')
+                .attr('data-model', model.name)
+                .on('click', function() {
+                    const modelName = d3.select(this).attr('data-model');
+                    const index = activeModels.indexOf(modelName);
+                    
+                    if (index === -1) {
+                        activeModels.push(modelName);
+                        d3.select(this).style('opacity', 1);
+                    } else {
+                        activeModels.splice(index, 1);
+                        d3.select(this).style('opacity', 0.5);
+                    }
+                    
+                    updateChart();
+                });
+            
+            item.append('div')
+                .attr('class', 'legend-color')
+                .style('background-color', model.color);
+            
+            item.append('span')
+                .text(model.name);
+        });
+
+        // 创建区域生成器
+        const area = d3.area()
+            .x(d => x(d.year))
+            .y0(height)
+            .y1(d => y(d.value))
+            .curve(d3.curveMonotoneX);
+
+        // 创建路径组
+        svg.append('g').attr('class', 'areas');
+
+        // 更新图表函数
+        function updateChart() {
+            const filteredData = data.filter(d => activeModels.includes(d.name));
+            
+            // 选择所有区域路径
+            const areas = svg.select('.areas')
+                .selectAll('path')
+                .data(filteredData, d => d.name);
+            
+            // 移除退出的元素
+            areas.exit()
+                .transition()
+                .duration(700)
+                .attr('opacity', 0)
+                .remove();
+            
+            // 添加新元素
+            const newAreas = areas.enter()
+                .append('path')
+                .attr('fill', d => d.color)
+                .attr('opacity', 0.7)
+                .attr('d', d => area(d.values))
+                .attr('stroke', d => d.color)
+                .attr('stroke-width', 1.5)
+                .on('mousemove', function(event, d) {
+                    // 计算鼠标位置对应的年份
+                    const year = Math.round(x.invert(event.offsetX));
+                    const valueObj = d.values.find(v => v.year === year);
+                    
+                    if (valueObj) {
+                        const tooltip = d3.select('.tooltip');
+                        tooltip.html(`
+                            <strong>${d.name}</strong><br>
+                            Year: ${year}<br>
+                            Frequency: ${valueObj.value.toFixed(1)}
+                        `)
+                        .style('left', (event.pageX + 10) + 'px')
+                        .style('top', (event.pageY - 20) + 'px')
+                        .style('opacity', 1);
+                    }
+                })
+                .on('mouseout', function() {
+                    d3.select('.tooltip')
+                        .style('opacity', 0);
+                });
+            
+            // 更新所有元素
+            newAreas.merge(areas)
+                .transition()
+                .duration(700)
+                .attr('d', d => area(d.values))
+                .attr('fill', d => d.color)
+                .attr('stroke', d => d.color);
+        }
+
+        // 添加交互按钮功能
+        d3.select('.interactive').on('click', function() {
+            isInteractiveMode = true;
+            
+            // 创建更强调差异的交互数据
+            const interactiveData = JSON.parse(JSON.stringify(originalData));
+            
+            interactiveData.forEach(model => {
+                model.values.forEach(d => {
+                    if (model.name === 'End-to-end' && d.year >= 2010) {
+                        d.value = Math.min(10, d.value * 1.3); // 增加End-to-end后期的频率
+                    } else if (model.name === 'Vector model' && d.year >= 2005) {
+                        d.value = Math.min(8, d.value * 1.2); // 增加Vector model的频率
+                    } else if (model.name === 'Set model') {
+                        d.value = d.value * 0.8; // 降低Set model的频率
+                    }
+                });
+            });
+            
+            data = interactiveData;
+            
+            // 添加过渡动画
+            svg.selectAll('.areas path')
+                .transition()
+                .duration(1200)
+                .ease(d3.easeElasticOut)
+                .attr('d', d => area(data.find(m => m.name === d.name).values))
+                .attr('opacity', 0.85);
+                
+            // 改变按钮状态
+            d3.select(this).style('background-color', '#27ae60');
+            d3.select('.reset').style('background-color', '#95a5a6');
+        });
+
+        // 添加重置按钮功能
+        d3.select('.reset').on('click', function() {
+            isInteractiveMode = false;
+            data = JSON.parse(JSON.stringify(originalData));
+            activeModels = models.map(m => m.name);
+            
+            // 重置图例状态
+            d3.selectAll('.legend-item')
+                .style('opacity', 1);
+            
+            // 重置图表
+            svg.selectAll('.areas path')
+                .transition()
+                .duration(1000)
+                .ease(d3.easeCubicOut)
+                .attr('d', d => area(data.find(m => m.name === d.name).values))
+                .attr('opacity', 0.7);
+                
+            // 改变按钮状态
+            d3.select(this).style('background-color', '#27ae60');
+            d3.select('.interactive').style('background-color', '#3498db');
+        });
+
+        // 初始绘制图表
+        updateChart();
+
+        // 添加窗口大小变化响应
+        window.addEventListener('resize', function() {
+            const newWidth = document.querySelector('.chart-container').clientWidth - margin.left - margin.right;
+            
+            // 更新比例尺
+            x.range([0, newWidth]);
+            
+            // 更新坐标轴
+            svg.select('.x-axis')
+                .call(xAxis);
+                
+            svg.select('.x-grid')
+                .call(xGrid);
+                
+            // 更新区域路径
+            svg.selectAll('.areas path')
+                .attr('d', d => area(d.values));
+                
+            // 更新SVG宽度
+            d3.select('.chart')
+                .attr('width', newWidth + margin.left + margin.right);
+        });
+    </script>
+</body>
+</html>
